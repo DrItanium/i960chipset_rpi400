@@ -117,8 +117,9 @@ void setup() {
 	//spiInit(MCP23S17_SPEED);
 	std::cout << "chipset!" << std::endl;
 }
+constexpr auto Megabytes = 1024 * 1024;
 int main() {
-	ram = std::make_unique<MemoryCell[]>((512 * 1024 * 1024) / sizeof(MemoryCell));
+	ram = std::make_unique<MemoryCell[]>((1024 * Megabytes) / sizeof(MemoryCell));
 	wiringPiSetup();
 	setup();
 	while (true) {
