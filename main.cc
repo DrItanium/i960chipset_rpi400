@@ -74,6 +74,26 @@ setDataLinesDirection(decltype(OUTPUT) direction) {
 		pinMode(i, direction);
 	}
 }
+uint16_t 
+getDataValue() {
+	uint16_t value = 0;
+	for (int i = 100, j = 0; i < 116; ++i, ++j) {
+		if (digitalRead(i) != LOW) {
+			value |= static_cast<uint16_t>(1 << j);
+		}
+	}	
+	return value;
+}
+void
+setDataValue(uint16_t value) {
+	for (int i = 100, j = 0; i < 116; ++i, ++j) {
+		if ((value & static_cast<uint16_t>(i << j))) {
+			digitalWrite(i, HIGH);
+		} else {
+			digitalWrite(i, LOW);
+		}
+	}
+}
 
 void setup() {
 	pinModeBlock( PinConfigurationDescription { LevelShifterHatEnable, OUTPUT },
@@ -154,7 +174,8 @@ getBurstAddressBits() {
 	bits |= digitalRead(BA3Pin) == LOW ? 0 : 0b1000;
 	return bits;
 }
-	void 
+
+void 
 toAddressState()
 {
 	asEnabled = false;
@@ -188,6 +209,7 @@ handleChipsetAddress() {
 		denEnabled = false;
 		currentlyReading = digitalRead(WRPin) == LOW;
 		currentState = ProcessorChipsetState::Data;
+		setDataLinesDirection(currentlyReading ? OUTPUT : INPUT);
 	}
 }
 void
@@ -195,7 +217,12 @@ handleChipsetData() {
 	auto burstBits = getBurstAddressBits();
 	auto address = choppedBits | burstBits;
 	if (currentlyReading) {
+		std::cout << "Read from 0x" << std::hex << address << std::endl;
+		setDataValue(0);
 	} else {
+		// stub for now
+		auto value = getDataValue();
+		std::cout << "Write 0x" << std::hex << value << " to 0x" << address << std::endl;
 	}
 	auto blastAsserted = digitalRead(BLASTPin) == LOW;
 	digitalWrite(READYPin, LOW);
