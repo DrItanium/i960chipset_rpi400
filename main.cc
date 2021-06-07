@@ -134,9 +134,7 @@ void setup() {
 	}
 	delay(1000);
 	digitalWrite(RESET960Pin, HIGH);
-	std::cout << "waiting for fail pin" << std::endl;
 	while (digitalRead(FAILPin) == LOW); // wait for self test to start
-	std::cout << "running self test" << std::endl;
 	while (digitalRead(FAILPin) == HIGH); // wait for self test to finish
 }
 
@@ -190,6 +188,7 @@ toAddressState()
 }
 void 
 handleChipsetIdle() {
+	std::cout << "idle" << std::endl;
 	if (digitalRead(FAILPin) == HIGH) {
 		currentState = ProcessorChipsetState::ChecksumFailure;
 	} else {
@@ -200,6 +199,7 @@ handleChipsetIdle() {
 }
 void 
 handleChipsetAddress() {
+	std::cout << "address" << std::endl;
 	if (captureAddress) {
 		captureAddress = false;
 		baseAddress = 0;	
@@ -212,13 +212,14 @@ handleChipsetAddress() {
 	}
 	if (denEnabled) {
 		denEnabled = false;
-		currentlyReading = digitalRead(WRPin) == LOW;
 		currentState = ProcessorChipsetState::Data;
-		setDataLinesDirection(currentlyReading ? OUTPUT : INPUT);
 	}
 }
 void
 handleChipsetData() {
+	std::cout << "data" << std::endl;
+	currentlyReading = digitalRead(WRPin) == LOW;
+		setDataLinesDirection(currentlyReading ? OUTPUT : INPUT);
 	auto burstBits = getBurstAddressBits();
 	auto address = choppedBits | burstBits;
 	if (currentlyReading) {
