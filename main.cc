@@ -2,8 +2,11 @@
 #include <iostream>
 #include <memory>
 #include <tuple>
+#include <cerrno>
+#include <cstring>
 
 #include <wiringPi.h>
+#include <wiringPiSPI.h>
 constexpr auto DENPin = 1;
 constexpr auto ASPin = 4;
 constexpr auto INT0Pin = 5;
@@ -14,6 +17,9 @@ constexpr auto READYPin = 27;
 constexpr auto BLASTPin = 28;
 constexpr auto FAILPin = 29;
 constexpr auto GPIOCSPin = 10;
+constexpr auto SPI_CHAN = 0;
+constexpr auto MCP23S17_SPEED = 10000000;
+int spiFD = 0;
 union MemoryCell {
 	uint16_t value = 0;
 	uint8_t bytes[2];
@@ -45,6 +51,13 @@ void digitalWriteBlock(D&& ... args) noexcept {
 	(digitalWrite(args), ...);
 }
 
+void spiInit(int speed) {
+	if (spiFD = wiringPiSPISetup(SPI_CHAN, MCP23S17_SPEED); spiFD < 0) {
+		std::cerr << "Can't open the SPI bus: " << strerror(errno) << std::endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
 void setup() {
 	pinModeBlock( PinConfigurationDescription { LevelShifterHatEnable, OUTPUT },
 		      PinConfigurationDescription { RESET960Pin, OUTPUT },
@@ -61,6 +74,7 @@ void setup() {
 			  PinDirectionDescription {INT0Pin, HIGH},
 			  PinDirectionDescription {READYPin, HIGH},
 			  PinDirectionDescription {GPIOCSPin, HIGH});
+	spiInit(MCP23S17_SPEED);
 	std::cout << "chipset!" << std::endl;
 }
 int main() {
