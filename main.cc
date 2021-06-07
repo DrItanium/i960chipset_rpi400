@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <tuple>
+
 #include <wiringPi.h>
 constexpr auto DENPin = 1;
 constexpr auto ASPin = 4;
@@ -19,12 +21,24 @@ union MemoryCell {
 std::unique_ptr<MemoryCell[]> ram;
 template<auto pin, auto assertState = LOW, auto deassertState = HIGH>
 struct PinHolder final {
-	PinHolder() { digitalWrite(pin, assertState); }
-	~PinHolder() { digitalWrite(pin, deassertState); }
+	PinHolder() noexcept { digitalWrite(pin, assertState); }
+	~PinHolder() noexcept { digitalWrite(pin, deassertState); }
 };
 template<typename ... Pins>
-void pinModeBlock(decltype(OUTPUT) direction, Pins&& ... pins) {
+void pinModeBlock(decltype(OUTPUT) direction, Pins&& ... pins) noexcept {
 	(pinMode(pins, direction), ...);
+}
+
+using PinDirectionDescription = std::tuple<decltype(GPIOCSPin), decltype(LOW)>;
+
+void digitalWrite(PinDirectionDescription description) noexcept {
+	digitalWrite(std::get<0>(description), 
+		     std::get<1>(description));
+}
+
+template<typename ... D>
+void digitalWriteBlock(D&& ... args) noexcept {
+	(digitalWrite(args), ...);
 }
 
 void setup() {
@@ -40,10 +54,11 @@ void setup() {
 		     WRPin,
 		     BLASTPin,
 		     FAILPin);
-	pinMode(RESET960Pin, OUTPUT);
-	pinMode(LevelShifterHatEnable, OUTPUT);
 	PinHolder<RESET960Pin> holdi960InReset;
-	digitalWrite(LevelShifterHatEnable, HIGH);
+	digitalWriteBlock(PinDirectionDescription {LevelShifterHatEnable, HIGH},
+			  PinDirectionDescription {INT0Pin, HIGH},
+			  PinDirectionDescription {READYPin, HIGH},
+			  PinDirectionDescription {GPIOCSPin, HIGH});
 	std::cout << "chipset!" << std::endl;
 }
 int main() {
