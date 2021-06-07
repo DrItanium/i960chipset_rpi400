@@ -55,7 +55,7 @@ using PinDirectionDescription = std::tuple<decltype(GPIOCSPin), decltype(LOW)>;
 
 void digitalWrite(PinDirectionDescription description) noexcept {
 	digitalWrite(std::get<0>(description), 
-		     std::get<1>(description));
+			std::get<1>(description));
 }
 
 template<typename ... D>
@@ -77,20 +77,20 @@ setDataLinesDirection(decltype(OUTPUT) direction) {
 
 void setup() {
 	pinModeBlock( PinConfigurationDescription { LevelShifterHatEnable, OUTPUT },
-		      PinConfigurationDescription { RESET960Pin, OUTPUT },
-		      PinConfigurationDescription { READYPin, OUTPUT },
-		      PinConfigurationDescription { INT0Pin, OUTPUT },
-		      PinConfigurationDescription { GPIOCSPin, OUTPUT },
-		      PinConfigurationDescription { DENPin, INPUT },
-		      PinConfigurationDescription { ASPin, INPUT },
-		      PinConfigurationDescription { WRPin, INPUT },
-		      PinConfigurationDescription { BLASTPin, INPUT },
-		      PinConfigurationDescription { FAILPin, INPUT });
+			PinConfigurationDescription { RESET960Pin, OUTPUT },
+			PinConfigurationDescription { READYPin, OUTPUT },
+			PinConfigurationDescription { INT0Pin, OUTPUT },
+			PinConfigurationDescription { GPIOCSPin, OUTPUT },
+			PinConfigurationDescription { DENPin, INPUT },
+			PinConfigurationDescription { ASPin, INPUT },
+			PinConfigurationDescription { WRPin, INPUT },
+			PinConfigurationDescription { BLASTPin, INPUT },
+			PinConfigurationDescription { FAILPin, INPUT });
 	PinHolder<RESET960Pin> holdi960InReset;
 	digitalWriteBlock(PinDirectionDescription {LevelShifterHatEnable, HIGH},
-			  PinDirectionDescription {INT0Pin, HIGH},
-			  PinDirectionDescription {READYPin, HIGH},
-			  PinDirectionDescription {GPIOCSPin, HIGH});
+			PinDirectionDescription {INT0Pin, HIGH},
+			PinDirectionDescription {READYPin, HIGH},
+			PinDirectionDescription {GPIOCSPin, HIGH});
 	wiringPiISR(ASPin, INT_EDGE_FALLING, []() { asEnabled = true; });
 	wiringPiISR(DENPin, INT_EDGE_FALLING, []() { denEnabled = true; });
 	// we have 4 io expanders to talk to, the speed of the spi device is marked is set to 4MHz, we want to increase this if we directly access the 
@@ -114,6 +114,109 @@ void setup() {
 	}
 	std::cout << "chipset!" << std::endl;
 }
+
+[[noreturn]]
+void handleChecksumFailure() {
+	std::cerr << "Processor Checksum Failure" << std::endl;
+	while (true) { }
+}
+// Idle -> Idle : no request
+// Recovery -> Idle : no request
+// Recovery -> Address : Request pending
+// Idle -> Address : New Request
+// Address -> Data : ToDataState
+// Data -> Recovery : After READY and no burst (blast low)
+// Data -> Data : After READY and burst (blast high)
+// Idle -> ChecksumFailure if fail is asserted
+// Recovery -> ChecksumFailure if fail is asserted
+// 
+// Address: Entry: clear address state triggered
+// Data: burst is sampled
+// Data: Entry: den is cleared
+enum class ProcessorChipsetState {
+	Idle,
+	Address,
+	Data,
+	Recovery,
+	Wait, // unused
+	ChecksumFailure,
+};
+ProcessorChipsetState currentState = ProcessorChipsetState::Idle;
+bool captureAddress = false;
+bool currentlyReading = false;
+uint32_t baseAddress = 0;
+uint32_t choppedBits = 0;
+uint8_t
+getBurstAddressBits() {
+	uint8_t bits = 0;
+	bits |= digitalRead(BA1Pin) == LOW ? 0 : 0b0010;
+	bits |= digitalRead(BA2Pin) == LOW ? 0 : 0b0100;
+	bits |= digitalRead(BA3Pin) == LOW ? 0 : 0b1000;
+	return bits;
+}
+	void 
+toAddressState()
+{
+	asEnabled = false;
+	captureAddress = true;	
+	baseAddress = 0;
+	currentState = ProcessorChipsetState::Address;		
+}
+void 
+handleChipsetIdle() {
+	if (digitalRead(FAILPin) == HIGH) {
+		currentState = ProcessorChipsetState::ChecksumFailure;
+	} else {
+		if (asEnabled) {
+			toAddressState();
+		}
+	}
+}
+void 
+handleChipsetAddress() {
+	if (captureAddress) {
+		captureAddress = false;
+		baseAddress = 0;	
+		for (int i = 116, j = 0; i < 148; ++i, ++j) {
+			if (digitalRead(i) != LOW) {
+				baseAddress |= (1 << j);
+			}
+		}	
+		choppedBits = baseAddress & (~0b1111);
+	}
+	if (denEnabled) {
+		denEnabled = false;
+		currentlyReading = digitalRead(WRPin) == LOW;
+		currentState = ProcessorChipsetState::Data;
+	}
+}
+void
+handleChipsetData() {
+	auto burstBits = getBurstAddressBits();
+	auto address = choppedBits | burstBits;
+	if (currentlyReading) {
+	} else {
+	}
+	auto blastAsserted = digitalRead(BLASTPin) == LOW;
+	digitalWrite(READYPin, LOW);
+	digitalWrite(READYPin, HIGH);
+	if (blastAsserted) {
+		currentState = ProcessorChipsetState::Recovery;
+	}
+}
+void
+handleChipsetRecovery() {
+	if (digitalRead(FAILPin) == HIGH) {
+		currentState = ProcessorChipsetState::ChecksumFailure;
+	} else {
+		if (asEnabled) {
+			toAddressState();
+		} else {
+			currentState = ProcessorChipsetState::Idle;
+		}
+	}
+}
+
 int main() {
 	ram = std::make_unique<MemoryCell[]>((1024 * Megabytes) / sizeof(MemoryCell));
 	wiringPiSetup();
@@ -121,7 +224,28 @@ int main() {
 	// do the initial startup state
 	while (digitalRead(FAILPin) == LOW); // wait for self test to start
 	while (digitalRead(FAILPin) == HIGH); // wait for self test to finish
-	
+	// enter into the idle state	
+	while (true) {
+		switch (currentState) {
+			case ProcessorChipsetState::Idle:
+				handleChipsetIdle();
+				break;
+			case ProcessorChipsetState::Address:
+				handleChipsetAddress();
+				break;
+			case ProcessorChipsetState::Data:
+				handleChipsetData();
+				break;
+			case ProcessorChipsetState::Recovery:
+				handleChipsetRecovery();
+				break;
+			case ProcessorChipsetState::ChecksumFailure:
+				handleChecksumFailure();
+				break;
+			default:
+				break;
+		}
+	}
 	digitalWrite(LevelShifterHatEnable, LOW);
 	return 0;
 }
