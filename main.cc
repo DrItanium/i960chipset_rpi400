@@ -1,18 +1,18 @@
 #include <iostream>
 #include <wiringPi.h>
-constexpr auto EnablePin = 25;
+constexpr auto LevelShifterHatEnable = 25;
 int main() {
 	wiringPiSetup();
-	pinMode(EnablePin, OUTPUT);
-	digitalWrite(EnablePin, HIGH);
+	pinMode(LevelShifterHatEnable, OUTPUT);
+	digitalWrite(LevelShifterHatEnable, HIGH);
 	std::cout << "chipset!" << std::endl;
 	for (int i = 0; i < 10; ++i) {
-		digitalWrite(EnablePin, LOW);
+		digitalWrite(LevelShifterHatEnable, LOW);
 		delay(1000);
-		digitalWrite(EnablePin, HIGH);
+		digitalWrite(LevelShifterHatEnable, HIGH);
 		delay(1000);
 	}
-	digitalWrite(EnablePin, LOW);
+	digitalWrite(LevelShifterHatEnable, LOW);
 	return 0;
 }
 
