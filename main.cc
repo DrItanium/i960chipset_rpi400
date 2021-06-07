@@ -19,7 +19,16 @@ constexpr auto BLASTPin = 28;
 constexpr auto FAILPin = 29;
 constexpr auto GPIOCSPin = 10;
 constexpr auto SPI_CHAN = 0;
+constexpr auto BA1Pin = 148;
+constexpr auto BA2Pin = 149;
+constexpr auto BA3Pin = 150;
+constexpr auto BE0Pin = 151;
+constexpr auto BE1Pin = 152;
+constexpr auto HOLDPin = 153;
+constexpr auto HLDAPin = 154;
+constexpr auto LOCKPin = 155;
 constexpr auto MCP23S17_SPEED = 10000000;
+constexpr auto Megabytes = 1024 * 1024;
 int spiFD = 0;
 bool asEnabled = false;
 bool denEnabled = false;
@@ -53,15 +62,11 @@ template<typename ... D>
 void digitalWriteBlock(D&& ... args) noexcept {
 	(digitalWrite(args), ...);
 }
-#if 0
-void spiInit(int speed) {
-	if (spiFD = wiringPiSPISetup(SPI_CHAN, MCP23S17_SPEED); spiFD < 0) {
-		std::cerr << "Can't open the SPI bus: " << strerror(errno) << std::endl;
-		exit(EXIT_FAILURE);
-	}
+void
+markReady() {
+	pinMode(READYPin, LOW);
+	pinMode(READYPin, HIGH);
 }
-#endif
-
 void 
 setDataLinesDirection(decltype(OUTPUT) direction) {
 	/// @todo replace these calls with direct reads and writes
@@ -69,6 +74,7 @@ setDataLinesDirection(decltype(OUTPUT) direction) {
 		pinMode(i, direction);
 	}
 }
+
 void setup() {
 	pinModeBlock( PinConfigurationDescription { LevelShifterHatEnable, OUTPUT },
 		      PinConfigurationDescription { RESET960Pin, OUTPUT },
@@ -98,32 +104,24 @@ void setup() {
 		pinMode(132 + i, INPUT);
 		pinMode(148 + i, INPUT);
 	}
-	// 148 - BA1
-	// 149 - BA2
-	// 150 - BA3
-	// 151 - BE0
-	// 152 - BE1
-	// 153 - HOLD (OUTPUT)
-	// 154 - HLDA
-	// 155 - ~LOCK
-	pinMode(153, OUTPUT);
-	pinMode(155, OUTPUT);
-	digitalWrite(153, LOW);
-	digitalWrite(155, HIGH);
+	pinMode(HOLDPin, OUTPUT);
+	pinMode(LOCKPin, OUTPUT);
+	digitalWrite(HOLDPin, LOW);
+	digitalWrite(LOCKPin, HIGH);
 	for (int i = 156; i < (148 + 16); ++i) {
 		pinMode(i, OUTPUT);
 		digitalWrite(i, LOW);
 	}
-	//spiInit(MCP23S17_SPEED);
 	std::cout << "chipset!" << std::endl;
 }
-constexpr auto Megabytes = 1024 * 1024;
 int main() {
 	ram = std::make_unique<MemoryCell[]>((1024 * Megabytes) / sizeof(MemoryCell));
 	wiringPiSetup();
 	setup();
-	while (true) {
-	}
+	// do the initial startup state
+	while (digitalRead(FAILPin) == LOW); // wait for self test to start
+	while (digitalRead(FAILPin) == HIGH); // wait for self test to finish
+	
 	digitalWrite(LevelShifterHatEnable, LOW);
 	return 0;
 }
