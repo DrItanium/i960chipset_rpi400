@@ -8,10 +8,10 @@ constexpr auto INT0Pin = 5;
 constexpr auto WRPin = 6;
 constexpr auto RESET960Pin = 26;
 constexpr auto LevelShifterHatEnable = 25;
-constexpr auto READYPin = -1;
-constexpr auto BLASTPin = -1;
-constexpr auto FAILPin = -1;
-constexpr auto GPIOCSPin = -1;
+constexpr auto READYPin = 27;
+constexpr auto BLASTPin = 28;
+constexpr auto FAILPin = 29;
+constexpr auto GPIOCSPin = 10;
 union MemoryCell {
 	uint16_t value = 0;
 	uint8_t bytes[2];
@@ -22,7 +22,24 @@ struct PinHolder final {
 	PinHolder() { digitalWrite(pin, assertState); }
 	~PinHolder() { digitalWrite(pin, deassertState); }
 };
+template<typename ... Pins>
+void pinModeBlock(decltype(OUTPUT) direction, Pins&& ... pins) {
+	(pinMode(pins, direction), ...);
+}
+
 void setup() {
+	pinModeBlock(OUTPUT, 
+		     LevelShifterHatEnable,
+		     RESET960Pin,
+		     READYPin,
+		     INT0Pin,
+		     GPIOCSPin);
+	pinModeBlock(INPUT,
+		     DENPin,
+		     ASPin,
+		     WRPin,
+		     BLASTPin,
+		     FAILPin);
 	pinMode(RESET960Pin, OUTPUT);
 	pinMode(LevelShifterHatEnable, OUTPUT);
 	PinHolder<RESET960Pin> holdi960InReset;
