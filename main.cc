@@ -106,7 +106,7 @@ void setup() {
 			PinConfigurationDescription { WRPin, INPUT },
 			PinConfigurationDescription { BLASTPin, INPUT },
 			PinConfigurationDescription { FAILPin, INPUT });
-	PinHolder<RESET960Pin> holdi960InReset;
+	digitalWrite(RESET960Pin, LOW);
 	digitalWriteBlock(PinDirectionDescription {LevelShifterHatEnable, HIGH},
 			PinDirectionDescription {INT0Pin, HIGH},
 			PinDirectionDescription {READYPin, HIGH},
@@ -132,7 +132,12 @@ void setup() {
 		pinMode(i, OUTPUT);
 		digitalWrite(i, LOW);
 	}
-	std::cout << "chipset!" << std::endl;
+	delay(1000);
+	digitalWrite(RESET960Pin, HIGH);
+	std::cout << "waiting for fail pin" << std::endl;
+	while (digitalRead(FAILPin) == LOW); // wait for self test to start
+	std::cout << "running self test" << std::endl;
+	while (digitalRead(FAILPin) == HIGH); // wait for self test to finish
 }
 
 [[noreturn]]
@@ -249,8 +254,6 @@ int main() {
 	wiringPiSetup();
 	setup();
 	// do the initial startup state
-	while (digitalRead(FAILPin) == LOW); // wait for self test to start
-	while (digitalRead(FAILPin) == HIGH); // wait for self test to finish
 	// enter into the idle state	
 	while (true) {
 		switch (currentState) {
