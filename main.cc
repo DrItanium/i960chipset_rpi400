@@ -24,9 +24,13 @@ struct PinHolder final {
 	PinHolder() noexcept { digitalWrite(pin, assertState); }
 	~PinHolder() noexcept { digitalWrite(pin, deassertState); }
 };
+using PinConfigurationDescription = std::tuple<decltype(DENPin), decltype(OUTPUT)>;
+void pinMode(PinConfigurationDescription desc) noexcept {
+	pinMode(std::get<0>(desc), std::get<1>(desc));
+}
 template<typename ... Pins>
-void pinModeBlock(decltype(OUTPUT) direction, Pins&& ... pins) noexcept {
-	(pinMode(pins, direction), ...);
+void pinModeBlock(Pins&& ... pins) noexcept {
+	(pinMode(pins), ...);
 }
 
 using PinDirectionDescription = std::tuple<decltype(GPIOCSPin), decltype(LOW)>;
@@ -42,18 +46,16 @@ void digitalWriteBlock(D&& ... args) noexcept {
 }
 
 void setup() {
-	pinModeBlock(OUTPUT, 
-		     LevelShifterHatEnable,
-		     RESET960Pin,
-		     READYPin,
-		     INT0Pin,
-		     GPIOCSPin);
-	pinModeBlock(INPUT,
-		     DENPin,
-		     ASPin,
-		     WRPin,
-		     BLASTPin,
-		     FAILPin);
+	pinModeBlock( PinConfigurationDescription { LevelShifterHatEnable, OUTPUT },
+		      PinConfigurationDescription { RESET960Pin, OUTPUT },
+		      PinConfigurationDescription { READYPin, OUTPUT },
+		      PinConfigurationDescription { INT0Pin, OUTPUT },
+		      PinConfigurationDescription { GPIOCSPin, OUTPUT },
+		      PinConfigurationDescription { DENPin, INPUT },
+		      PinConfigurationDescription { ASPin, INPUT },
+		      PinConfigurationDescription { WRPin, INPUT },
+		      PinConfigurationDescription { BLASTPin, INPUT },
+		      PinConfigurationDescription { FAILPin, INPUT });
 	PinHolder<RESET960Pin> holdi960InReset;
 	digitalWriteBlock(PinDirectionDescription {LevelShifterHatEnable, HIGH},
 			  PinDirectionDescription {INT0Pin, HIGH},
