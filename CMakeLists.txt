@@ -6,4 +6,4 @@ add_executable(chipset400
 	main.cc)
 
 target_link_libraries(chipset400
-		      wiringpi)
+		      wiringPi)
